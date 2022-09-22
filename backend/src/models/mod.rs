@@ -1,11 +1,12 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use sqlx::{
-    postgres::{PgPoolOptions, PgQueryResult, PgRow, PgTypeInfo},
-    Encode, PgPool, Pool, Postgres, QueryBuilder, Type,
+    postgres::{PgPoolOptions, PgQueryResult, PgRow},
+    PgPool, Pool, Postgres, QueryBuilder,
 };
 use std::{env, fmt::Display, process::exit};
 
+mod team;
 mod user;
 
 pub fn _default_false() -> bool {
@@ -17,9 +18,7 @@ pub fn _default_true() -> bool {
 }
 
 pub async fn db() -> Result<Pool<Postgres>> {
-    // dotenv()?;
     let db_url = match env::var("DATABASE_URL") {
-        // Ok(u) => format!("{}_test", u),
         Ok(u) => u,
         Err(e) => {
             eprintln!("Failed to get DATABASE_URL variable. {}", e);
@@ -38,6 +37,7 @@ pub async fn db() -> Result<Pool<Postgres>> {
     Ok(pool)
 }
 
+#[derive(Debug, Clone)]
 pub enum DataType {
     Str(String),
     OptStr(Option<String>),
@@ -57,46 +57,6 @@ impl Display for DataType {
             DataType::Bool(v) => write!(f, "'{}'", v),
         }
     }
-}
-
-impl Encode<'_, Postgres> for DataType {
-    fn encode_by_ref(&self, buf: &mut ::sqlx::postgres::PgArgumentBuffer) -> sqlx::encode::IsNull {
-        let mut encoder = ::sqlx::postgres::types::PgRecordEncoder::new(buf);
-        match self {
-            DataType::Str(v) => encoder.encode(v),
-            DataType::OptStr(v) => match v {
-                Some(t) => encoder.encode(t),
-                None => {
-                    return sqlx::encode::IsNull::Yes;
-                }
-            },
-            DataType::Int(v) => encoder.encode(v),
-            DataType::Bool(v) => encoder.encode(v),
-        };
-        sqlx::encode::IsNull::No
-    }
-}
-
-impl Type<Postgres> for DataType {
-    fn type_info() -> PgTypeInfo {
-        match Self {
-            DataType::Str(v) => String::type_info(),
-            DataType::OptStr(v) => String::type_info(),
-            DataType::Int(v) => i64::type_info(),
-            DataType::Bool(v) => bool::type_info(),
-        }
-        // PgTypeInfo::with_name("VARCHAR")
-    }
-
-    // fn type_info() -> PgTypeInfo {
-    //     String::type_info()
-    // match &Self {
-    //     DataType::Str(v) => String::type_info(),
-    //     DataType::OptStr(v) => String::type_info(),
-    //     DataType::Int(v) => i64::type_info(),
-    //     DataType::Bool(v) => bool::type_info(),
-    // }
-    // }
 }
 
 #[async_trait]
@@ -130,11 +90,24 @@ pub trait Resource: Sized + for<'r> sqlx::FromRow<'r, PgRow> + Unpin + Send {
         query.build().execute(pool).await
     }
 
+    /// Get an item by it's primary key
+    async fn get(pool: &PgPool, identifier: DataType) -> Result<Self, sqlx::Error> {
+        let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
+        query
+            .push(Self::table_name())
+            .push(" WHERE ")
+            .push(Self::primary_key())
+            .push(" = ")
+            .push(identifier.clone());
+
+        query.build_query_as().fetch_one(pool).await
+    }
+
     async fn get_all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
         let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
         query
             .push(Self::table_name())
-            .push("ORDER BY")
+            .push(" ORDER BY ")
             .push(Self::primary_key());
 
         query.build_query_as().fetch_all(pool).await
@@ -150,17 +123,18 @@ pub trait Resource: Sized + for<'r> sqlx::FromRow<'r, PgRow> + Unpin + Send {
             columns.push(v);
         }
 
-        query
-            .push("WHERE id = ")
-            .push_bind(self.primary_key_value());
+        query.push("WHERE id = ").push(self.primary_key_value());
 
         query.build().execute(pool).await
     }
 
     async fn delete(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
-        sqlx::query(&format!("DELETE FROM {} WHERE id = $1", Self::table_name(),))
-            .bind(self.primary_key_value())
-            .execute(pool)
-            .await
+        sqlx::query(&format!(
+            "DELETE FROM {} WHERE id = {}",
+            Self::table_name(),
+            self.primary_key_value()
+        ))
+        .execute(pool)
+        .await
     }
 }

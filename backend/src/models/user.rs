@@ -41,10 +41,13 @@ pub struct User {
 }
 
 impl Resource for User {
+    /// The table name in the database
     fn table_name() -> &'static str {
         "users"
     }
 
+    /// The serializable fields of the table. Do not include auto generated fields like the
+    /// serial ID
     fn fields(&self) -> Vec<(&'static str, super::DataType)> {
         vec![
             ("username", DataType::Str(self.username.clone())),
