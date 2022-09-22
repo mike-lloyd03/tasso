@@ -7,6 +7,7 @@ use sqlx::{
 use std::{env, fmt::Display, process::exit};
 
 mod team;
+mod team_member;
 mod user;
 
 pub fn _default_false() -> bool {
@@ -65,7 +66,9 @@ pub trait Resource: Sized + for<'r> sqlx::FromRow<'r, PgRow> + Unpin + Send {
 
     fn fields(&self) -> Vec<(&'static str, DataType)>;
 
-    fn primary_key() -> &'static str;
+    fn primary_key() -> &'static str {
+        "id"
+    }
 
     fn primary_key_value(&self) -> DataType;
 

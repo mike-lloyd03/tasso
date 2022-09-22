@@ -59,10 +59,6 @@ impl Resource for User {
         ]
     }
 
-    fn primary_key() -> &'static str {
-        "id"
-    }
-
     fn primary_key_value(&self) -> DataType {
         DataType::Int(self.id)
     }
