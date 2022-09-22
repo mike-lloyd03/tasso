@@ -1,8 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use sqlx::{
-    postgres::{PgPoolOptions, PgQueryResult, PgRow},
-    PgPool, Pool, Postgres, QueryBuilder,
+    postgres::{PgPoolOptions, PgQueryResult, PgRow, PgTypeInfo},
+    Encode, PgPool, Pool, Postgres, QueryBuilder, Type,
 };
 use std::{env, fmt::Display, process::exit};
 
@@ -59,19 +59,62 @@ impl Display for DataType {
     }
 }
 
+impl Encode<'_, Postgres> for DataType {
+    fn encode_by_ref(&self, buf: &mut ::sqlx::postgres::PgArgumentBuffer) -> sqlx::encode::IsNull {
+        let mut encoder = ::sqlx::postgres::types::PgRecordEncoder::new(buf);
+        match self {
+            DataType::Str(v) => encoder.encode(v),
+            DataType::OptStr(v) => match v {
+                Some(t) => encoder.encode(t),
+                None => {
+                    return sqlx::encode::IsNull::Yes;
+                }
+            },
+            DataType::Int(v) => encoder.encode(v),
+            DataType::Bool(v) => encoder.encode(v),
+        };
+        sqlx::encode::IsNull::No
+    }
+}
+
+impl Type<Postgres> for DataType {
+    fn type_info() -> PgTypeInfo {
+        match Self {
+            DataType::Str(v) => String::type_info(),
+            DataType::OptStr(v) => String::type_info(),
+            DataType::Int(v) => i64::type_info(),
+            DataType::Bool(v) => bool::type_info(),
+        }
+        // PgTypeInfo::with_name("VARCHAR")
+    }
+
+    // fn type_info() -> PgTypeInfo {
+    //     String::type_info()
+    // match &Self {
+    //     DataType::Str(v) => String::type_info(),
+    //     DataType::OptStr(v) => String::type_info(),
+    //     DataType::Int(v) => i64::type_info(),
+    //     DataType::Bool(v) => bool::type_info(),
+    // }
+    // }
+}
+
 #[async_trait]
 pub trait Resource: Sized + for<'r> sqlx::FromRow<'r, PgRow> + Unpin + Send {
-    fn id(&self) -> i64;
-
     fn table_name() -> &'static str;
 
     fn fields(&self) -> Vec<(&'static str, DataType)>;
 
+    fn primary_key() -> &'static str;
+
+    fn primary_key_value(&self) -> DataType;
+
     async fn create(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
         let mut query: QueryBuilder<Postgres> = QueryBuilder::new("INSERT INTO ");
+        query.push(Self::table_name());
 
-        query.push(Self::table_name()).push(" (");
         let mut columns = query.separated(", ");
+        columns.push_unseparated(" (");
         for f in self.fields().iter() {
             columns.push(f.0);
         }
@@ -88,9 +131,13 @@ pub trait Resource: Sized + for<'r> sqlx::FromRow<'r, PgRow> + Unpin + Send {
     }
 
     async fn get_all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
-        sqlx::query_as(&format!("SELECT * FROM {} ORDER BY id", Self::table_name(),))
-            .fetch_all(pool)
-            .await
+        let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
+        query
+            .push(Self::table_name())
+            .push("ORDER BY")
+            .push(Self::primary_key());
+
+        query.build_query_as().fetch_all(pool).await
     }
 
     async fn update(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
@@ -103,14 +150,16 @@ pub trait Resource: Sized + for<'r> sqlx::FromRow<'r, PgRow> + Unpin + Send {
             columns.push(v);
         }
 
-        query.push("WHERE id = ").push_bind(self.id());
+        query
+            .push("WHERE id = ")
+            .push_bind(self.primary_key_value());
 
         query.build().execute(pool).await
     }
 
     async fn delete(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query(&format!("DELETE FROM {} WHERE id = $1", Self::table_name(),))
-            .bind(self.id())
+            .bind(self.primary_key_value())
             .execute(pool)
             .await
     }

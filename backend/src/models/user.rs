@@ -45,10 +45,6 @@ impl Resource for User {
         "users"
     }
 
-    fn id(&self) -> i64 {
-        self.id
-    }
-
     fn fields(&self) -> Vec<(&'static str, super::DataType)> {
         vec![
             ("username", DataType::Str(self.username.clone())),
@@ -58,6 +54,14 @@ impl Resource for User {
             ("admin", DataType::Bool(self.admin)),
             ("active", DataType::Bool(self.active)),
         ]
+    }
+
+    fn primary_key() -> &'static str {
+        "id"
+    }
+
+    fn primary_key_value(&self) -> DataType {
+        DataType::Int(self.id)
     }
 }
 
