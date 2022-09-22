@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgQueryResult, query, query_as, FromRow, PgPool};
 use validator::Validate;
 
-use super::{DataType, Resource, _default_false, _default_true};
+use super::types::{DataType, Resource};
+use super::{_default_false, _default_true};
 
 lazy_static! {
     static ref USERNAME: Regex = Regex::new(r#"[\w\d]{3,}"#).expect("failed creating regex");
@@ -48,19 +49,19 @@ impl Resource for User {
 
     /// The serializable fields of the table. Do not include auto generated fields like the
     /// serial ID
-    fn fields(&self) -> Vec<(&'static str, super::DataType)> {
+    fn fields(&self) -> Vec<(&'static str, DataType)> {
         vec![
-            ("username", DataType::Str(self.username.clone())),
-            ("lastname", DataType::OptStr(self.lastname.clone())),
-            ("firstname", DataType::OptStr(self.firstname.clone())),
-            ("email", DataType::OptStr(self.email.clone())),
+            ("username", DataType::String(self.username.clone())),
+            ("lastname", DataType::OptString(self.lastname.clone())),
+            ("firstname", DataType::OptString(self.firstname.clone())),
+            ("email", DataType::OptString(self.email.clone())),
             ("admin", DataType::Bool(self.admin)),
             ("active", DataType::Bool(self.active)),
         ]
     }
 
     fn primary_key_value(&self) -> DataType {
-        DataType::Int(self.id)
+        DataType::Int64(self.id)
     }
 }
 
@@ -195,8 +196,8 @@ fn fake_validate() {
 
 #[cfg(test)]
 mod user_tests {
+    use crate::models::types::Resource;
     use crate::models::user::{Credentials, User};
-    use crate::models::Resource;
     use anyhow::Result;
     use sqlx::{query, PgPool};
 

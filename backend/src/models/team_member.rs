@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use super::{DataType, Resource};
+use super::types::{DataType, Resource};
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, FromRow, Serialize, Deserialize)]
 pub struct TeamMember {
@@ -16,23 +16,23 @@ impl Resource for TeamMember {
         "team_members"
     }
 
-    fn fields(&self) -> Vec<(&'static str, super::DataType)> {
+    fn fields(&self) -> Vec<(&'static str, DataType)> {
         vec![
-            ("team_id", DataType::Int(self.team_id)),
-            ("user_id", DataType::Int(self.user_id)),
+            ("team_id", DataType::Int64(self.team_id)),
+            ("user_id", DataType::Int64(self.user_id)),
             ("manager", DataType::Bool(self.manager)),
         ]
     }
 
     fn primary_key_value(&self) -> DataType {
-        DataType::Int(self.id)
+        DataType::Int64(self.id)
     }
 }
 
 #[cfg(test)]
 mod team_member_tests {
     use crate::models::team_member::TeamMember;
-    use crate::models::Resource;
+    use crate::models::types::Resource;
     use anyhow::Result;
     use sqlx::PgPool;
 

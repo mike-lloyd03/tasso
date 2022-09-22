@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use super::{DataType, Resource};
+use super::types::{DataType, Resource};
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, FromRow, Serialize, Deserialize)]
 pub struct Team {
@@ -15,22 +15,22 @@ impl Resource for Team {
         "teams"
     }
 
-    fn fields(&self) -> Vec<(&'static str, super::DataType)> {
+    fn fields(&self) -> Vec<(&'static str, DataType)> {
         vec![
-            ("name", DataType::Str(self.name.clone())),
-            ("description", DataType::OptStr(self.description.clone())),
+            ("name", DataType::String(self.name.clone())),
+            ("description", DataType::OptString(self.description.clone())),
         ]
     }
 
     fn primary_key_value(&self) -> DataType {
-        DataType::Int(self.id)
+        DataType::Int64(self.id)
     }
 }
 
 #[cfg(test)]
 mod team_tests {
-    use crate::models::Resource;
-    use crate::models::{team::Team, DataType::Int};
+    use crate::models::types::Resource;
+    use crate::models::{team::Team, types::DataType::Int64};
     use anyhow::Result;
     use sqlx::{query, PgPool};
 
@@ -44,7 +44,7 @@ mod team_tests {
             ..Default::default()
         };
         team.create(&pool).await?;
-        let got_team = Team::get(&pool, Int(1)).await?;
+        let got_team = Team::get(&pool, Int64(1)).await?;
 
         assert_eq!(team.name, got_team.name);
         assert_eq!(team.description, got_team.description);
@@ -54,7 +54,7 @@ mod team_tests {
 
     #[sqlx::test(fixtures("teams"))]
     async fn test_get_team(pool: PgPool) -> Result<()> {
-        let team = Team::get(&pool, Int(1)).await?;
+        let team = Team::get(&pool, Int64(1)).await?;
 
         assert_eq!("team1", team.name);
         assert_eq!(Some("this is a good team".into()), team.description);
@@ -74,11 +74,11 @@ mod team_tests {
     #[sqlx::test(fixtures("teams"))]
     async fn test_update_team(pool: PgPool) -> Result<()> {
         let new_name = "teamTwo";
-        let mut team = Team::get(&pool, Int(1)).await?;
+        let mut team = Team::get(&pool, Int64(1)).await?;
         team.name = new_name.into();
         team.update(&pool).await?;
 
-        let updated_team = Team::get(&pool, Int(1)).await?;
+        let updated_team = Team::get(&pool, Int64(1)).await?;
 
         assert_eq!(new_name, updated_team.name);
 
@@ -87,7 +87,7 @@ mod team_tests {
 
     #[sqlx::test(fixtures("teams"))]
     async fn test_delete_team(pool: PgPool) -> Result<()> {
-        let team = Team::get(&pool, Int(2)).await?;
+        let team = Team::get(&pool, Int64(2)).await?;
         team.delete(&pool).await?;
 
         let res = query("SELECT * FROM users WHERE id = $1")
