@@ -1,5 +1,2 @@
 [workspace]
-members = [
-  "backend",
-  # "frontend",
-]
+members = ["crates/backend", "crates/resource", "crates/resource_derive"]

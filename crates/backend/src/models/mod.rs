@@ -3,6 +3,7 @@ use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{env, process::exit};
 
 mod positions;
+mod scheduled_position;
 mod team;
 mod team_member;
 mod types;
