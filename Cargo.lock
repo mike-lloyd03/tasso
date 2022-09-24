@@ -323,7 +323,7 @@ dependencies = [
  "orion",
  "pwgen",
  "regex",
- "resource",
+ "resource_derive",
  "serde",
  "sqlx",
  "sqlx-rt",
@@ -1565,16 +1565,6 @@ name = "regex-syntax"
 version = "0.6.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
-
-[[package]]
-name = "resource"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "resource_derive",
- "sqlx",
-]
 
 [[package]]
 name = "resource_derive"

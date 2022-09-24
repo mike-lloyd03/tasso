@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgQueryResult, query, query_as, FromRow, PgPool};
 use validator::Validate;
 
-use super::types::{DataType, Resource};
+use super::resource::Resource;
 use super::{_default_false, _default_true};
 
 lazy_static! {
@@ -23,8 +23,11 @@ pub struct Credentials {
     pub password: String,
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone, FromRow, Serialize, Deserialize, Validate)]
+#[derive(
+    Debug, Default, PartialEq, Eq, Clone, FromRow, Serialize, Deserialize, Validate, Resource,
+)]
 pub struct User {
+    #[primary_key]
     pub id: i64,
     #[validate(regex = "USERNAME")]
     pub username: String,
@@ -39,30 +42,6 @@ pub struct User {
     pub admin: bool,
     #[serde(default = "_default_true")]
     pub active: bool,
-}
-
-impl Resource for User {
-    /// The table name in the database
-    fn table_name() -> &'static str {
-        "users"
-    }
-
-    /// The serializable fields of the table. Do not include auto generated fields like the
-    /// serial ID
-    fn fields(&self) -> Vec<(&'static str, DataType)> {
-        vec![
-            ("username", DataType::String(self.username.clone())),
-            ("lastname", DataType::OptString(self.lastname.clone())),
-            ("firstname", DataType::OptString(self.firstname.clone())),
-            ("email", DataType::OptString(self.email.clone())),
-            ("admin", DataType::Bool(self.admin)),
-            ("active", DataType::Bool(self.active)),
-        ]
-    }
-
-    fn primary_key_value(&self) -> DataType {
-        DataType::Int64(self.id)
-    }
 }
 
 impl User {
@@ -196,7 +175,7 @@ fn fake_validate() {
 
 #[cfg(test)]
 mod user_tests {
-    use crate::models::types::Resource;
+    use crate::models::resource::Resource;
     use crate::models::user::{Credentials, User};
     use anyhow::Result;
     use sqlx::{query, PgPool};

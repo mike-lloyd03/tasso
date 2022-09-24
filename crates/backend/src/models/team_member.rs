@@ -1,38 +1,21 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use super::types::{DataType, Resource};
+use super::resource::Resource;
 
-#[derive(Debug, Default, PartialEq, Eq, Clone, FromRow, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, FromRow, Serialize, Deserialize, Resource)]
 pub struct TeamMember {
+    #[primary_key]
     id: i64,
     team_id: i64,
     user_id: i64,
     manager: bool,
 }
 
-impl Resource for TeamMember {
-    fn table_name() -> &'static str {
-        "team_members"
-    }
-
-    fn fields(&self) -> Vec<(&'static str, DataType)> {
-        vec![
-            ("team_id", DataType::Int64(self.team_id)),
-            ("user_id", DataType::Int64(self.user_id)),
-            ("manager", DataType::Bool(self.manager)),
-        ]
-    }
-
-    fn primary_key_value(&self) -> DataType {
-        DataType::Int64(self.id)
-    }
-}
-
 #[cfg(test)]
 mod team_member_tests {
+    use crate::models::resource::Resource;
     use crate::models::team_member::TeamMember;
-    use crate::models::types::Resource;
     use anyhow::Result;
     use sqlx::PgPool;
 

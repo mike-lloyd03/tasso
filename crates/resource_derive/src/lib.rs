@@ -1,8 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    self, punctuated::Punctuated, token::Comma, DataStruct, DeriveInput, Field, Fields, Ident, Type,
-};
+use syn::{self, DataStruct, DeriveInput, Fields, Ident, Type};
 
 #[proc_macro_derive(Resource, attributes(primary_key))]
 pub fn resource_derive(input: TokenStream) -> TokenStream {
@@ -18,32 +16,25 @@ fn impl_resource(ast: &DeriveInput) -> TokenStream {
     let ((primary_key, primary_key_dt), fields) = get_fields(&ast);
 
     let gen = quote! {
-        use async_trait::async_trait;
-        use chrono::{NaiveDate, NaiveTime};
-        use sqlx::{
-            postgres::{PgQueryResult, PgRow},
-            PgPool, Postgres, QueryBuilder,
-        };
-
-        #[async_trait]
+        #[async_trait::async_trait]
         impl Resource for #name {
-            async fn create(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
-                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("INSERT INTO ");
+            async fn create(&self, pool: &sqlx::postgres::PgPool) -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
+                let mut query: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new("INSERT INTO ");
                 query.push(#table_name)
                     .push(" (")
                     .push(stringify!(#(#fields),*))
                     .push(") VALUES (");
 
                 let mut sep = query.separated(", ");
-                #(sep.push_bind(self.#fields);)*
+                #(sep.push_bind(self.#fields.clone());)*
 
                 query.push(")");
 
                 query.build().execute(pool).await
             }
 
-            async fn get_all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
-                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
+            async fn get_all(pool: &sqlx::postgres::PgPool) -> Result<Vec<Self>, sqlx::Error> {
+                let mut query: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new("SELECT * FROM ");
                 query
                     .push(#table_name)
                     .push(" ORDER BY ")
@@ -52,24 +43,24 @@ fn impl_resource(ast: &DeriveInput) -> TokenStream {
                 query.build_query_as().fetch_all(pool).await
             }
 
-            async fn update(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
-                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE ");
+            async fn update(&self, pool: &sqlx::postgres::PgPool) -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
+                let mut query: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new("UPDATE ");
                 query.push(#table_name)
                     .push(" SET ");
 
                 let mut sep = query.separated(", ");
-                #(sep.push(format!("{} = {}", stringify!(#fields), self.#fields));)*
+                #(sep.push(stringify!(#fields)).push_unseparated(" = ").push_bind_unseparated(self.#fields.clone());)*
 
                 query.push(" WHERE ")
                     .push(stringify!(#primary_key))
                     .push(" = ")
-                    .push_bind(self.#primary_key);
+                    .push_bind(self.#primary_key.clone());
 
                 query.build().execute(pool).await
             }
 
-            async fn delete(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
-                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("DELETE FROM ");
+            async fn delete(&self, pool: &sqlx::postgres::PgPool) -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
+                let mut query: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new("DELETE FROM ");
                 query.push(#table_name)
                     .push(" WHERE ")
                     .push(stringify!(#primary_key))
@@ -82,8 +73,8 @@ fn impl_resource(ast: &DeriveInput) -> TokenStream {
         }
 
         impl #name {
-            async fn get(pool: &PgPool, identifier: #primary_key_dt) -> Result<Self, sqlx::Error> {
-                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
+            async fn get(pool: &sqlx::postgres::PgPool, identifier: #primary_key_dt) -> Result<Self, sqlx::Error> {
+                let mut query: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new("SELECT * FROM ");
                 query
                     .push(#table_name)
                     .push(" WHERE ")

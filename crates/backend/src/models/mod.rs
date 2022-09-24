@@ -3,10 +3,10 @@ use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{env, process::exit};
 
 mod positions;
+mod resource;
 mod scheduled_position;
 mod team;
 mod team_member;
-mod types;
 mod user;
 
 pub fn _default_false() -> bool {

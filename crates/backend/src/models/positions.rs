@@ -2,10 +2,11 @@ use chrono::{NaiveDate, NaiveTime};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use super::types::{DataType, Resource};
+use super::resource::Resource;
 
-#[derive(Debug, Default, PartialEq, Eq, Clone, FromRow, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, FromRow, Serialize, Deserialize, Resource)]
 pub struct Position {
+    #[primary_key]
     id: i64,
     team_id: i64,
     name: String,
@@ -14,30 +15,10 @@ pub struct Position {
     end_time: NaiveTime,
 }
 
-impl Resource for Position {
-    fn table_name() -> &'static str {
-        "positions"
-    }
-
-    fn fields(&self) -> Vec<(&'static str, DataType)> {
-        vec![
-            ("team_id", DataType::Int64(self.team_id)),
-            ("name", DataType::String(self.name.clone())),
-            ("date", DataType::Date(self.date)),
-            ("start_time", DataType::Time(self.start_time)),
-            ("end_time", DataType::Time(self.end_time)),
-        ]
-    }
-
-    fn primary_key_value(&self) -> DataType {
-        DataType::Int64(self.id)
-    }
-}
-
 #[cfg(test)]
 mod position_tests {
     use crate::models::positions::Position;
-    use crate::models::types::Resource;
+    use crate::models::resource::Resource;
     use anyhow::Result;
     use chrono::{NaiveDate, NaiveTime};
     use sqlx::PgPool;
@@ -53,7 +34,7 @@ mod position_tests {
             end_time: NaiveTime::from_hms(10, 45, 0),
         };
         let res = pos1.create(&pool).await?;
-        assert_eq!(2, res.rows_affected());
+        assert_eq!(1, res.rows_affected());
 
         Ok(())
     }

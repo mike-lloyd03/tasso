@@ -1,4 +1,4 @@
-use resource::Resource;
+use super::resource::Resource;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -12,9 +12,9 @@ pub struct ScheduledPosition {
 
 #[cfg(test)]
 mod scheduled_position_tests {
+    use crate::models::resource::Resource;
     use crate::models::scheduled_position::ScheduledPosition;
     use anyhow::Result;
-    use resource::Resource;
     use sqlx::PgPool;
 
     #[sqlx::test]
