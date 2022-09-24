@@ -9,3 +9,10 @@ proc-macro = true
 [dependencies]
 quote = "1.0.21"
 syn = { version = "1.0.100", features = ["full"] }
+async-trait = "0.1.57"
+# chrono = "0.4.22"
+# sqlx = { version = "0.6.2", features = [
+#   "postgres",
+#   "runtime-actix-rustls",
+#   "chrono",
+# ] }

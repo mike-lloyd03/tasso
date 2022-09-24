@@ -1,6 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{self, DataStruct, Fields};
+use syn::{
+    self, punctuated::Punctuated, token::Comma, DataStruct, DeriveInput, Field, Fields, Ident, Type,
+};
 
 #[proc_macro_derive(Resource, attributes(primary_key))]
 pub fn resource_derive(input: TokenStream) -> TokenStream {
@@ -9,56 +11,88 @@ pub fn resource_derive(input: TokenStream) -> TokenStream {
     impl_resource(&ast)
 }
 
-fn impl_resource(ast: &syn::DeriveInput) -> TokenStream {
+fn impl_resource(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
-    let table_name = to_snake_case(&name.to_string());
-    let data = match &ast.data {
-        syn::Data::Struct(DataStruct {
-            fields: Fields::Named(fields),
-            ..
-        }) => &fields.named,
-        _ => panic!("Only structs with named fields can derive Resource"),
-    };
+    let table_name = to_snake_case(&ast.ident.to_string());
 
-    let mut primary_key = "".to_string();
-    for d in data {
-        for a in &d.attrs {
-            if a.path.is_ident("primary_key") {
-                primary_key = d.ident.clone().unwrap().to_string();
-            }
-        }
-    }
-    if primary_key.is_empty() {
-        panic!("primary_key must be defined")
-    }
-
-    println!("primary_key: '{}'", primary_key);
+    let ((primary_key, primary_key_dt), fields) = get_fields(&ast);
 
     let gen = quote! {
+        use async_trait::async_trait;
+        use chrono::{NaiveDate, NaiveTime};
+        use sqlx::{
+            postgres::{PgQueryResult, PgRow},
+            PgPool, Postgres, QueryBuilder,
+        };
+
+        #[async_trait]
         impl Resource for #name {
-            fn table_name() -> &'static str {
-                // println!("{:?}", #data.to_string());
-                // for f in #data {
-                //     println!("{:?}", f);
-                // };
+            async fn create(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
+                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("INSERT INTO ");
+                query.push(#table_name)
+                    .push(" (")
+                    .push(stringify!(#(#fields),*))
+                    .push(") VALUES (");
 
-                // format!("{}s", stringify!(#name)).as_str()
-                stringify!(#table_name)
+                let mut sep = query.separated(", ");
+                #(sep.push_bind(self.#fields);)*
+
+                query.push(")");
+
+                query.build().execute(pool).await
             }
 
-            // fn fields(&self) -> Vec<(&'static str, DataType)> {
-            //     vec![
-            //         ("first", DataType::Bool(false))
-            //     ]
-            // }
+            async fn get_all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
+                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
+                query
+                    .push(#table_name)
+                    .push(" ORDER BY ")
+                    .push(stringify!(#primary_key));
 
-            fn primary_key() -> &'static str {
-                stringify!(#primary_key)
+                query.build_query_as().fetch_all(pool).await
             }
 
-            // fn primary_key_value(&self) -> DataType {
-            //     DataType::Int64(0)
-            // }
+            async fn update(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
+                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE ");
+                query.push(#table_name)
+                    .push(" SET ");
+
+                let mut sep = query.separated(", ");
+                #(sep.push(format!("{} = {}", stringify!(#fields), self.#fields));)*
+
+                query.push(" WHERE ")
+                    .push(stringify!(#primary_key))
+                    .push(" = ")
+                    .push_bind(self.#primary_key);
+
+                query.build().execute(pool).await
+            }
+
+            async fn delete(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
+                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("DELETE FROM ");
+                query.push(#table_name)
+                    .push(" WHERE ")
+                    .push(stringify!(#primary_key))
+                    .push(" = ")
+                    .push_bind(self.#primary_key);
+
+                query.build().execute(pool)
+                .await
+            }
+        }
+
+        impl #name {
+            async fn get(pool: &PgPool, identifier: #primary_key_dt) -> Result<Self, sqlx::Error> {
+                let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
+                query
+                    .push(#table_name)
+                    .push(" WHERE ")
+                    .push(stringify!(#primary_key))
+                    .push(" = ")
+                    .push(identifier.clone());
+
+                query.build_query_as().fetch_one(pool).await
+            }
         }
     };
 
@@ -68,13 +102,58 @@ fn impl_resource(ast: &syn::DeriveInput) -> TokenStream {
 fn to_snake_case(s: &str) -> String {
     let new_s: String = s
         .chars()
-        .map(|c| {
+        .enumerate()
+        .map(|(i, c)| {
             if c.is_uppercase() {
-                format!("_{}", c.to_lowercase())
+                if i == 0 {
+                    format!("{}", c.to_lowercase())
+                } else {
+                    format!("_{}", c.to_lowercase())
+                }
             } else {
-                format!("{}", c)
+                if i == s.len() - 1 {
+                    format!("{}s", c)
+                } else {
+                    format!("{}", c)
+                }
             }
         })
         .collect();
     new_s
+}
+
+fn get_fields(ast: &DeriveInput) -> ((Ident, Type), Vec<Ident>) {
+    let mut primary_key: Option<Ident> = None;
+    let mut primary_key_dt: Option<Type> = None;
+    let mut fields = Vec::new();
+
+    let data = match &ast.data {
+        syn::Data::Struct(DataStruct {
+            fields: Fields::Named(fields),
+            ..
+        }) => &fields.named,
+        _ => panic!("Only structs with named fields can derive Resource"),
+    };
+
+    for d in data {
+        if d.attrs.iter().any(|a| a.path.is_ident("primary_key")) {
+            primary_key = d.ident.clone();
+            primary_key_dt = Some(d.ty.clone());
+        } else {
+            let mut field = vec![d.ident.clone().expect("field should be named")];
+            fields.append(&mut field)
+        }
+    }
+
+    if primary_key.is_none() || primary_key_dt.is_none() {
+        panic!("primary_key must be defined");
+    };
+
+    (
+        (
+            primary_key.expect("primary_key should be some"),
+            primary_key_dt.expect("primary_key_dt should be some"),
+        ),
+        fields,
+    )
 }

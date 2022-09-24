@@ -8,7 +8,5 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.57"
 chrono = "0.4.22"
-quote = "1.0.21"
 sqlx = "0.6.2"
-syn = "1.0.100"
 resource_derive = { path = "../resource_derive" }

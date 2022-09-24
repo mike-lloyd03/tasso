@@ -2,7 +2,10 @@ use std::fmt::Display;
 
 use async_trait::async_trait;
 use chrono::{NaiveDate, NaiveTime};
-use sqlx::{postgres::PgRow, PgPool, Postgres, QueryBuilder};
+use sqlx::{
+    postgres::{PgQueryResult, PgRow},
+    PgPool,
+};
 
 pub use resource_derive::Resource;
 
@@ -34,13 +37,21 @@ impl Display for DataType {
 
 #[async_trait]
 pub trait Resource: Sized + for<'r> sqlx::FromRow<'r, PgRow> + Unpin + Send {
-    fn table_name() -> &'static str;
+    async fn get_all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error>;
 
-    // fn fields(&self) -> Vec<(&'static str, DataType)>;
+    async fn delete(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error>;
 
-    fn primary_key() -> &'static str {
-        "id"
-    }
+    async fn create(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error>;
+
+    async fn update(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error>;
+
+    // fn table_name() -> &'static str;
+
+    // // fn fields(&self) -> Vec<(&'static str, DataType)>;
+
+    // fn primary_key() -> &'static str {
+    //     "id"
+    // }
 
     // fn primary_key_value(&self) -> DataType;
 
@@ -78,15 +89,15 @@ pub trait Resource: Sized + for<'r> sqlx::FromRow<'r, PgRow> + Unpin + Send {
     //     query.build_query_as().fetch_one(pool).await
     // }
 
-    async fn get_all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
-        let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
-        query
-            .push(Self::table_name())
-            .push(" ORDER BY ")
-            .push(Self::primary_key());
+    // async fn get_all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
+    //     let mut query: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
+    //     query
+    //         .push(Self::table_name())
+    //         .push(" ORDER BY ")
+    //         .push(Self::primary_key());
 
-        query.build_query_as().fetch_all(pool).await
-    }
+    //     query.build_query_as().fetch_all(pool).await
+    // }
 
     // async fn update(&self, pool: &PgPool) -> Result<PgQueryResult, sqlx::Error> {
     //     let mut query: QueryBuilder<Postgres> = QueryBuilder::new("UPDATE ");
